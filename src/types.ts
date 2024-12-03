@@ -12,9 +12,28 @@ export interface FileSearchConfig {
   };
 }
 
+export interface FunctionDefinition {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, {
+      type: string;
+      description: string;
+      enum?: string[];
+      items?: {
+        type: string;
+        enum?: string[];
+      };
+    }>;
+    required?: string[];
+  };
+}
+
 export interface BuiltInTool {
   type: BuiltInToolType;
   file_search?: Partial<FileSearchConfig>;
+  function?: FunctionDefinition;
 }
 
 export interface AssistantLoadOptions {
@@ -22,14 +41,27 @@ export interface AssistantLoadOptions {
   thread_id?: string;
 }
 
+export interface ResponseFormat {
+  type: 'text' | 'json_object';
+  schema?: object;  // JSON Schema when type is json_object
+}
+
+export type ToolChoice = 'none' | 'auto' | { type: 'function'; function: { name: string } };
+
 export interface AssistantOptions extends LLMOptions {
   load_options: AssistantLoadOptions;
   tools?: BuiltInTool[];
+  response_format?: ResponseFormat;
+  strict?: boolean;
+  tool_choice?: ToolChoice;
 }
 
 export interface RunOptions {
   additional_instructions?: string;
   tools?: BuiltInTool[];
+  response_format?: ResponseFormat;
+  strict?: boolean;
+  tool_choice?: ToolChoice;
 }
 
 export interface ToolCall {
