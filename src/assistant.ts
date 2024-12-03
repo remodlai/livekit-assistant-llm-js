@@ -48,6 +48,23 @@ export class AssistantLLM implements LLM {
     }
   }
 
+  private async getNewMessages(after?: string): Promise<string[]> {
+    const messages = await this.openai.beta.threads.messages.list(this.thread_id, {
+      after,
+      order: 'asc'
+    });
+
+    const textMessages: string[] = [];
+    for (const message of messages.data) {
+      for (const content of message.content) {
+        if (content.type === 'text') {
+          textMessages.push(content.text.value);
+        }
+      }
+    }
+    return textMessages;
+  }
+
   async *process(input: string, options?: RunOptions): AsyncGenerator<string | ToolCall> {
     // Register any run-specific tool functions
     if (options?.tools) {
@@ -76,28 +93,36 @@ export class AssistantLLM implements LLM {
       tool_choice: options?.tool_choice
     });
 
-    // Track run state
+    // Track run state and last message timestamp
     let currentRun = run;
+    let lastMessageTime = run.created_at;
     
     while (true) {
       // Get updated run state
       currentRun = await this.openai.beta.threads.runs.retrieve(this.thread_id, currentRun.id);
 
+      // Check for new messages first
+      const newMessages = await this.getNewMessages(lastMessageTime);
+      if (newMessages.length > 0) {
+        for (const message of newMessages) {
+          yield message;
+        }
+        // Update last message time to the most recent message
+        const messages = await this.openai.beta.threads.messages.list(this.thread_id, {
+          order: 'desc',
+          limit: 1
+        });
+        if (messages.data.length > 0) {
+          lastMessageTime = messages.data[0].created_at;
+        }
+      }
+
       // Handle completion
       if (currentRun.status === 'completed') {
-        // Get messages added since last check
-        const messages = await this.openai.beta.threads.messages.list(this.thread_id, {
-          after: currentRun.created_at.toString(),
-          order: 'asc'
-        });
-
-        // Yield each message content
-        for (const message of messages.data) {
-          for (const content of message.content) {
-            if (content.type === 'text') {
-              yield content.text.value;
-            }
-          }
+        // Get any final messages
+        const finalMessages = await this.getNewMessages(lastMessageTime);
+        for (const message of finalMessages) {
+          yield message;
         }
         break;
       }
@@ -105,24 +130,10 @@ export class AssistantLLM implements LLM {
       // Handle tool calls
       if (currentRun.status === 'requires_action' && currentRun.required_action?.type === 'submit_tool_outputs') {
         const toolCalls = currentRun.required_action.submit_tool_outputs.tool_calls;
+        const toolOutputs = [];
+
         for (const toolCall of toolCalls) {
-          const toolFunction = this.toolFunctions.get(toolCall.function.name);
-          if (!toolFunction) {
-            throw new Error(`Tool function ${toolCall.function.name} not found`);
-          }
-
-          try {
-            const args = JSON.parse(toolCall.function.arguments);
-            const result = await toolFunction.handler(args);
-            await this.submitToolOutputs(currentRun.id, [{
-              tool_call_id: toolCall.id,
-              output: JSON.stringify(result)
-            }]);
-          } catch (error) {
-            console.error(`Error executing tool function ${toolCall.function.name}:`, error);
-            throw error;
-          }
-
+          // Yield tool call first
           yield {
             id: toolCall.id,
             type: toolCall.type,
@@ -131,12 +142,47 @@ export class AssistantLLM implements LLM {
               arguments: toolCall.function.arguments
             }
           };
+
+          // Execute tool function
+          const toolFunction = this.toolFunctions.get(toolCall.function.name);
+          if (!toolFunction) {
+            throw new Error(`Tool function ${toolCall.function.name} not found`);
+          }
+
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            const result = await toolFunction.handler(args);
+            toolOutputs.push({
+              tool_call_id: toolCall.id,
+              output: JSON.stringify(result)
+            });
+          } catch (error) {
+            console.error(`Error executing tool function ${toolCall.function.name}:`, error);
+            toolOutputs.push({
+              tool_call_id: toolCall.id,
+              output: JSON.stringify({ error: error.message })
+            });
+          }
+        }
+
+        // Submit all tool outputs together
+        if (toolOutputs.length > 0) {
+          await this.openai.beta.threads.runs.submitToolOutputs(
+            this.thread_id,
+            currentRun.id,
+            { tool_outputs: toolOutputs }
+          );
         }
       }
 
       // Handle failures
       if (currentRun.status === 'failed') {
         throw new Error(`Run failed: ${currentRun.last_error?.message || 'Unknown error'}`);
+      }
+
+      // Handle cancellation
+      if (currentRun.status === 'cancelled') {
+        break;
       }
 
       // Wait before checking again
