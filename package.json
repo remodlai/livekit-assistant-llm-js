@@ -1,39 +1,26 @@
 {
-  "name": "@livekit/agents-plugin-assistant",
-  "version": "0.1.0",
-  "description": "OpenAI Assistant LLM plugin for LiveKit Agents",
+  "name": "@remodl/assistant-llm",
+  "version": "1.0.0",
+  "description": "OpenAI Assistant integration for LiveKit",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "jest",
-    "lint": "eslint src/**/*.ts",
-    "prepare": "npm run build"
+    "test": "ts-node examples/test.ts",
+    "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' examples/test.ts"
   },
-  "keywords": [
-    "livekit",
-    "openai",
-    "assistant",
-    "llm"
-  ],
-  "author": "Brian Bagdasarian <brian@remodl.ai>",
-  "license": "Apache-2.0",
   "dependencies": {
-    "@livekit/agents": "^0.5.0",
-    "openai": "^4.24.0"
+    "@livekit/agents": "^0.1.0",
+    "@livekit/rtc-node": "0.5.0",
+    "livekit-client": "2.7.1",
+    "livekit-server-sdk": "^2.9.2",
+    "openai": "^4.0.0"
   },
   "devDependencies": {
-    "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "eslint": "^8.0.0",
-    "jest": "^29.0.0",
-    "ts-jest": "^29.0.0",
+    "dotenv": "^16.0.0",
+    "nodemon": "^3.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
-  },
-  "peerDependencies": {
-    "@livekit/agents": "^0.5.0",
-    "openai": "^4.24.0"
   }
-} 
+}

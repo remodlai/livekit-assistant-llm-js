@@ -1,9 +1,7 @@
 import OpenAI from 'openai';
-import { Room } from 'livekit-client';
+import { Room, RemoteParticipant, DataPacket_Kind } from 'livekit-client';
 import { AccessToken } from 'livekit-server-sdk';
 import { AssistantLLM } from '../src/assistant';
-import { RemoteParticipant } from '@livekit/rtc-node';
-import { DataPacket_Kind } from 'livekit-client';
 
 async function main() {
   // Initialize OpenAI client
