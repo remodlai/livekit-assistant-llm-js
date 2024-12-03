@@ -81,4 +81,35 @@ export class AssistantLLM implements Agent {
       );
     }
   }
+
+  async chat(params: { chatCtx: any; fncCtx: any }): Promise<any> {
+    const message = params.chatCtx.messages[params.chatCtx.messages.length - 1].content;
+    
+    // Create message in thread
+    await this.openai.beta.threads.messages.create(this.thread_id!, {
+      role: 'user',
+      content: message
+    });
+
+    // Start streaming run
+    const stream = await this.openai.beta.threads.runs.createAndStream(this.thread_id!, {
+      assistant_id: this.assistant_id
+    });
+
+    // Transform stream to match chat completions format
+    return {
+      async *[Symbol.asyncIterator]() {
+        for await (const chunk of stream) {
+          if ('content' in chunk) {
+            yield {
+              choices: [{
+                delta: { content: chunk.content },
+                index: 0
+              }]
+            };
+          }
+        }
+      }
+    };
+  }
 } 
