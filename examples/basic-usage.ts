@@ -3,6 +3,7 @@ import { Room } from 'livekit-client';
 import { AccessToken } from 'livekit-server-sdk';
 import { AssistantLLM } from '../src/assistant';
 import { RemoteParticipant } from '@livekit/rtc-node';
+import { DataPacket_Kind } from 'livekit-client';
 
 async function main() {
   // Initialize OpenAI client
@@ -38,7 +39,12 @@ async function main() {
   });
 
   // Subscribe to data messages
-  room.on('dataReceived', async (payload: Uint8Array, participant: RemoteParticipant) => {
+  room.on('dataReceived', (
+    payload: Uint8Array,
+    participant?: RemoteParticipant,
+    kind?: DataPacket_Kind,
+    topic?: string
+  ) => {
     if (!participant) return;
     
     try {
