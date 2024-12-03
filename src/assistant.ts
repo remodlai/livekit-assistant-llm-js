@@ -91,9 +91,10 @@ export class AssistantLLM implements Agent {
       content: message
     });
 
-    // Start streaming run
+    // Start streaming run with function calling enabled
     const stream = await this.openai.beta.threads.runs.createAndStream(this.thread_id!, {
-      assistant_id: this.assistant_id
+      assistant_id: this.assistant_id,
+      tools: params.fncCtx ? this.options.tools : undefined  // Only pass tools if we have fncCtx
     });
 
     // Transform stream to match chat completions format
@@ -104,6 +105,17 @@ export class AssistantLLM implements Agent {
             yield {
               choices: [{
                 delta: { content: chunk.content },
+                index: 0
+              }]
+            };
+          }
+          // Handle function calls if they come through the stream
+          if ('tool_calls' in chunk) {
+            yield {
+              choices: [{
+                delta: { 
+                  function_call: chunk.tool_calls[0]  // Assuming single function call for now
+                },
                 index: 0
               }]
             };
