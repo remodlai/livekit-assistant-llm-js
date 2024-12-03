@@ -13,20 +13,36 @@ export interface Relationship {
   metadata?: Record<string, any>;
 }
 
-// Training types
-export interface TrainingSequence {
-  id: string;
-  title: string;
-  steps: TrainingStep[];
-  status: 'pending' | 'in_progress' | 'completed';
-  metadata?: Record<string, any>;
-}
-
+// Core Training Types
 export interface TrainingStep {
   id: string;
   content: string;
   order: number;
   completed: boolean;
+}
+
+export interface TrainingBase {
+  id: string;
+  title: string;
+  metadata?: Record<string, any>;
+}
+
+// For stored training sequences
+export interface TrainingSequenceData extends TrainingBase {
+  steps: TrainingStep[];
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+// For training operations
+export interface TrainingOperation {
+  action: 'init' | 'add_step' | 'add_exception' | 'complete';
+  sequence_id?: string;
+  title?: string;
+  description?: string;
+  step_content?: string;
+  step_number?: number;
+  exception_content?: string;
+  related_step?: number;
 }
 
 export interface TrainingValidator {
@@ -85,15 +101,6 @@ export interface SearchMemory {
   }
 }
 
-export interface TrainingSequence {
-  action: 'init' | 'add_step' | 'add_exception' | 'complete';
-  title?: string;
-  description?: string;
-  sequence_id?: string;
-  step_content?: string;
-}
-
-// Queued operations
 export interface StoreMemory {
   content: {
     type: string;
