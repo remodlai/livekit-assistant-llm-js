@@ -1,4 +1,5 @@
 import type OpenAI from 'openai';
+import { RunReturn, MessageOptions } from './types/base';
 
 // Core Assistant Types
 export interface AssistantLoadOptions {
@@ -30,24 +31,24 @@ export interface MessageOptions {
 export const DEFAULT_HIDDEN_PREFIX = "THIS IS A HIDDEN SECRET MESSAGE FOR YOU: ";
 
 // Message handling types
-interface MessageMethods {
+export interface MessageMethods {
   add: {
-    text: (text: string, options?: MessageOptions) => AssistantRun;
+    text: (text: string, options?: MessageOptions) => RunReturn;
     image: {
-      file: (fileId: string, options?: MessageOptions) => AssistantRun;
-      url: (url: string, options?: MessageOptions) => AssistantRun;
+      file: (fileId: string, options?: MessageOptions) => RunReturn;
+      url: (url: string, options?: MessageOptions) => RunReturn;
     };
   };
   remove: {
-    text: (text: string) => AssistantRun;
+    text: (text: string) => RunReturn;
     image: {
-      file: (fileId: string) => AssistantRun;
-      url: (url: string) => AssistantRun;
+      file: (fileId: string) => RunReturn;
+      url: (url: string) => RunReturn;
     };
   };
   clear: {
-    all: () => AssistantRun;
-    images: () => AssistantRun;
-    text: () => AssistantRun;
+    all: () => RunReturn;
+    images: () => RunReturn;
+    text: () => RunReturn;
   };
 } 
