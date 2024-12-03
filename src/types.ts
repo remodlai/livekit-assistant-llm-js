@@ -1,6 +1,15 @@
 import type { Agent } from '@livekit/agents';
 import type OpenAI from 'openai';
 
+export interface JobContext {
+  input: string;
+  emit(event: string, data: any): void;
+  on(event: string, handler: (data: any) => void): void;
+  off(event: string, handler: (data: any) => void): void;
+}
+
+export type AssistantTool = OpenAI.Beta.Assistants.AssistantTool;
+
 export type BuiltInToolType = 'code_interpreter' | 'file_search' | 'function';
 
 export interface FileSearchConfig {
@@ -54,20 +63,12 @@ export interface ResponseFormat {
 
 export type ToolChoice = 'none' | 'auto' | { type: 'function'; function: { name: string } };
 
-export interface AssistantOptions {
-  load_options: AssistantLoadOptions;
-  tools?: BuiltInTool[];
-  response_format?: ResponseFormat;
-  strict?: boolean;
-  tool_choice?: ToolChoice;
-}
-
-export interface RunOptions {
+export interface RunOptions extends AssistantLoadOptions {
   additional_instructions?: string;
   tools?: BuiltInTool[];
   response_format?: ResponseFormat;
   strict?: boolean;
-  tool_choice?: ToolChoice;
+  tool_choice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
 }
 
 export interface ToolCall {
@@ -85,17 +86,17 @@ export interface RunState {
 }
 
 // Helper function to convert BuiltInTool to AssistantTool
-export function convertToAssistantTool(tool: BuiltInTool): OpenAI.Beta.Assistants.Tool {
+export function convertToAssistantTool(tool: BuiltInTool): AssistantTool {
   if (tool.type === 'function' && tool.function) {
     return {
       type: 'function',
       function: tool.function.definition
     };
   }
-  return { type: tool.type } as OpenAI.Beta.Assistants.Tool;
+  return { type: tool.type } as AssistantTool;
 }
 
-// Export OpenAI types for convenience
+// Export OpenAI type for convenience
 export type { OpenAI };
 
 // Export Agent type

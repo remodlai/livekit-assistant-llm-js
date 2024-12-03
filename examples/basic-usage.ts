@@ -1,64 +1,58 @@
 import OpenAI from 'openai';
-import { AssistantLLM } from '../src';
-import weatherTool from '../src/tools/weather';
-import calculatorTool from '../src/tools/calculator';
+import { Room } from 'livekit-client';
+import { AccessToken } from 'livekit-server-sdk';
+import { AssistantLLM } from '../src/assistant';
+import { RemoteParticipant } from '@livekit/rtc-node';
 
 async function main() {
+  // Initialize OpenAI client
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   });
 
-  // Initialize assistant with tools
-  const assistant = new AssistantLLM(openai, {
-    load_options: {
-      assistant_id: 'asst_...' // Your assistant ID
-    },
-    tools: [
-      {
-        type: 'function',
-        function: weatherTool
-      },
-      {
-        type: 'function',
-        function: calculatorTool
-      }
-    ]
+  // Create LiveKit access token
+  const at = new AccessToken(
+    process.env.LIVEKIT_API_KEY!,
+    process.env.LIVEKIT_API_SECRET!,
+    {
+      identity: 'assistant',
+      name: 'AI Assistant'
+    }
+  );
+
+  at.addGrant({
+    room: 'test-room',
+    roomJoin: true,
+    canPublish: true,
+    canSubscribe: true
   });
 
-  await assistant.init();
+  // Connect to LiveKit room
+  const room = new Room();
+  const token = at.toJwt();
+  await room.connect(process.env.LIVEKIT_URL!, await token);
 
-  // Process with auto tool choice
-  console.log('Processing with auto tool choice...');
-  for await (const response of assistant.process(
-    'What is the weather in London and what is 5 plus 3?',
-    {
-      tool_choice: 'auto'
-    }
-  )) {
-    if (typeof response === 'string') {
-      console.log('Assistant:', response);
-    } else {
-      console.log('Tool call:', response);
-    }
-  }
+  // Initialize assistant
+  const assistant = new AssistantLLM(openai, {
+    assistant_id: 'asst_...' // Your assistant ID
+  });
 
-  // Process with required tool
-  console.log('\nProcessing with required calculator tool...');
-  for await (const response of assistant.process(
-    'What is 10 divided by 2?',
-    {
-      tool_choice: {
-        type: 'function',
-        function: { name: 'calculate' }
+  // Subscribe to data messages
+  room.on('dataReceived', async (payload: Uint8Array, participant: RemoteParticipant) => {
+    if (!participant) return;
+    
+    try {
+      const message = JSON.parse(new TextDecoder().decode(payload));
+      if (message.type === 'text') {
+        console.log(`Received from ${participant.identity}:`, message.content);
       }
+    } catch (error) {
+      console.error('Error processing message:', error);
     }
-  )) {
-    if (typeof response === 'string') {
-      console.log('Assistant:', response);
-    } else {
-      console.log('Tool call:', response);
-    }
-  }
+  });
+
+  // Keep the process running
+  await new Promise(() => {});
 }
 
 main().catch(console.error); 
