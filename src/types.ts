@@ -1,6 +1,5 @@
-import { LLMOptions } from '@livekit/agents';
-import { ThreadMessage } from 'openai/resources/beta/threads/messages';
-import { Run } from 'openai/resources/beta/threads/runs';
+import type { PipelineAgent } from '@livekit/agents';
+import type OpenAI from 'openai';
 
 export type BuiltInToolType = 'code_interpreter' | 'file_search' | 'function';
 
@@ -55,7 +54,7 @@ export interface ResponseFormat {
 
 export type ToolChoice = 'none' | 'auto' | { type: 'function'; function: { name: string } };
 
-export interface AssistantOptions extends LLMOptions {
+export interface AssistantOptions {
   load_options: AssistantLoadOptions;
   tools?: BuiltInTool[];
   response_format?: ResponseFormat;
@@ -81,6 +80,20 @@ export interface ToolCall {
 }
 
 export interface RunState {
-  run: Run;
-  messages: ThreadMessage[];
-} 
+  run: OpenAI.Beta.Threads.Runs.Run;
+  messages: OpenAI.Beta.Threads.Messages.ThreadMessage[];
+}
+
+// Helper function to convert BuiltInTool to AssistantTool
+export function convertToAssistantTool(tool: BuiltInTool): OpenAI.Beta.Assistants.AssistantTool {
+  if (tool.type === 'function' && tool.function) {
+    return {
+      type: 'function',
+      function: tool.function.definition
+    };
+  }
+  return { type: tool.type } as OpenAI.Beta.Assistants.AssistantTool;
+}
+
+// Export OpenAI types for convenience
+export type { OpenAI }; 

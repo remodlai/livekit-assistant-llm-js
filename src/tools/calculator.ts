@@ -50,6 +50,8 @@ const calculatorTool: ToolFunction = {
         }
         result = args.numbers.reduce((a, b) => a / b);
         break;
+      default:
+        throw new Error(`Unknown operation: ${args.operation}`);
     }
 
     return {

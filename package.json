@@ -16,11 +16,11 @@
     "assistant",
     "llm"
   ],
-  "author": "LiveKit",
+  "author": "Brian Bagdasarian <brian@remodl.ai>",
   "license": "Apache-2.0",
   "dependencies": {
-    "@livekit/agents": "^0.11.3",
-    "openai": "^4.0.0"
+    "@livekit/agents": "^0.5.0",
+    "openai": "^4.24.0"
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
@@ -33,7 +33,7 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "@livekit/agents": "^0.11.3",
-    "openai": "^4.0.0"
+    "@livekit/agents": "^0.5.0",
+    "openai": "^4.24.0"
   }
 } 

@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
-import { LLMOptions, LLM } from '@livekit/agents';
-import { AssistantOptions, RunOptions, RunState, ToolCall, ToolChoice, ToolFunction } from './types';
+import { PipelineAgent } from '@livekit/agents';
+import { AssistantOptions, RunOptions, RunState, ToolCall, ToolChoice, ToolFunction, convertToAssistantTool } from './types';
 
-export class AssistantLLM implements LLM {
+export class AssistantLLM implements PipelineAgent {
   private openai: OpenAI;
   private assistant_id!: string;
   private thread_id!: string;
@@ -37,20 +37,17 @@ export class AssistantLLM implements LLM {
 
     // Update assistant if needed
     if (this.options.tools || this.options.response_format || this.options.tool_choice) {
-      await this.openai.beta.assistants.update(this.assistant_id, {
-        tools: this.options.tools?.map(tool => ({
-          type: tool.type,
-          function: tool.type === 'function' ? tool.function?.definition : undefined
-        })),
-        response_format: this.options.response_format,
-        tool_choice: this.options.tool_choice
-      });
+      const updateParams: OpenAI.Beta.Assistants.AssistantUpdateParams = {
+        tools: this.options.tools?.map(convertToAssistantTool),
+        response_format: this.options.response_format
+      };
+      await this.openai.beta.assistants.update(this.assistant_id, updateParams);
     }
   }
 
-  private async getNewMessages(after?: string): Promise<string[]> {
+  private async getNewMessages(after?: Date): Promise<string[]> {
     const messages = await this.openai.beta.threads.messages.list(this.thread_id, {
-      after,
+      after: after?.toISOString(),
       order: 'asc'
     });
 
@@ -85,17 +82,14 @@ export class AssistantLLM implements LLM {
     const run = await this.openai.beta.threads.runs.create(this.thread_id, {
       assistant_id: this.assistant_id,
       additional_instructions: options?.additional_instructions,
-      tools: options?.tools?.map(tool => ({
-        type: tool.type,
-        function: tool.type === 'function' ? tool.function?.definition : undefined
-      })),
+      tools: options?.tools?.map(convertToAssistantTool),
       response_format: options?.response_format,
       tool_choice: options?.tool_choice
     });
 
     // Track run state and last message timestamp
     let currentRun = run;
-    let lastMessageTime = run.created_at;
+    let lastMessageTime = new Date(run.created_at);
     
     while (true) {
       // Get updated run state
@@ -113,7 +107,7 @@ export class AssistantLLM implements LLM {
           limit: 1
         });
         if (messages.data.length > 0) {
-          lastMessageTime = messages.data[0].created_at;
+          lastMessageTime = new Date(messages.data[0].created_at);
         }
       }
 
@@ -156,11 +150,12 @@ export class AssistantLLM implements LLM {
               tool_call_id: toolCall.id,
               output: JSON.stringify(result)
             });
-          } catch (error) {
+          } catch (error: unknown) {
             console.error(`Error executing tool function ${toolCall.function.name}:`, error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             toolOutputs.push({
               tool_call_id: toolCall.id,
-              output: JSON.stringify({ error: error.message })
+              output: JSON.stringify({ error: errorMessage })
             });
           }
         }
