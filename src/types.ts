@@ -1,4 +1,4 @@
-import type { PipelineAgent } from '@livekit/agents';
+import type { Agent } from '@livekit/agents';
 import type OpenAI from 'openai';
 
 export type BuiltInToolType = 'code_interpreter' | 'file_search' | 'function';
@@ -80,20 +80,23 @@ export interface ToolCall {
 }
 
 export interface RunState {
-  run: OpenAI.Beta.Threads.Runs.Run;
-  messages: OpenAI.Beta.Threads.Messages.ThreadMessage[];
+  run: OpenAI.Beta.Threads.Run;
+  messages: OpenAI.Beta.Threads.Message[];
 }
 
 // Helper function to convert BuiltInTool to AssistantTool
-export function convertToAssistantTool(tool: BuiltInTool): OpenAI.Beta.Assistants.AssistantTool {
+export function convertToAssistantTool(tool: BuiltInTool): OpenAI.Beta.Assistants.Tool {
   if (tool.type === 'function' && tool.function) {
     return {
       type: 'function',
       function: tool.function.definition
     };
   }
-  return { type: tool.type } as OpenAI.Beta.Assistants.AssistantTool;
+  return { type: tool.type } as OpenAI.Beta.Assistants.Tool;
 }
 
 // Export OpenAI types for convenience
-export type { OpenAI }; 
+export type { OpenAI };
+
+// Export Agent type
+export type { Agent }; 

@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
-import { PipelineAgent } from '@livekit/agents';
+import { Agent } from '@livekit/agents';
 import { AssistantOptions, RunOptions, RunState, ToolCall, ToolChoice, ToolFunction, convertToAssistantTool } from './types';
 
-export class AssistantLLM implements PipelineAgent {
+export class AssistantLLM implements Agent {
   private openai: OpenAI;
   private assistant_id!: string;
   private thread_id!: string;
