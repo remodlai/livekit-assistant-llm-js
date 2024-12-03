@@ -1,54 +1,63 @@
-import { AssistantLLM } from '@livekit/agents-plugin-assistant';
+import OpenAI from 'openai';
+import { AssistantLLM } from '../src';
+import weatherTool from '../src/tools/weather';
+import calculatorTool from '../src/tools/calculator';
 
 async function main() {
-  // Example 1: Auto-create thread
-  const llmAutoThread = new AssistantLLM({
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  });
+
+  // Initialize assistant with tools
+  const assistant = new AssistantLLM(openai, {
     load_options: {
-      assistant_id: 'YOUR_ASSISTANT_ID'
-      // thread_id not provided - will create new thread
+      assistant_id: 'asst_...' // Your assistant ID
     },
     tools: [
-      { type: 'code_interpreter' },
-      { type: 'file_search' }
+      {
+        type: 'function',
+        function: weatherTool
+      },
+      {
+        type: 'function',
+        function: calculatorTool
+      }
     ]
   });
 
-  // Example 2: Use existing thread
-  const llmExistingThread = new AssistantLLM({
-    load_options: {
-      assistant_id: 'YOUR_ASSISTANT_ID',
-      thread_id: 'EXISTING_THREAD_ID'  // Use existing thread
-    },
-    tools: [
-      { type: 'code_interpreter' },
-      { type: 'file_search' }
-    ]
-  });
+  await assistant.init();
 
-  // Example with auto-created thread
-  try {
-    for await (const chunk of llmAutoThread.process(
-      'Tell me about TypeScript',
-      true,
-      'Be concise'
-    )) {
-      process.stdout.write(chunk);
+  // Process with auto tool choice
+  console.log('Processing with auto tool choice...');
+  for await (const response of assistant.process(
+    'What is the weather in London and what is 5 plus 3?',
+    {
+      tool_choice: 'auto'
     }
-  } catch (error) {
-    console.error('Error:', error);
+  )) {
+    if (typeof response === 'string') {
+      console.log('Assistant:', response);
+    } else {
+      console.log('Tool call:', response);
+    }
   }
 
-  // Example with existing thread
-  try {
-    for await (const chunk of llmExistingThread.process(
-      'What are the benefits of using TypeScript?',
-      true,
-      'Focus on practical examples'
-    )) {
-      process.stdout.write(chunk);
+  // Process with required tool
+  console.log('\nProcessing with required calculator tool...');
+  for await (const response of assistant.process(
+    'What is 10 divided by 2?',
+    {
+      tool_choice: {
+        type: 'function',
+        function: { name: 'calculate' }
+      }
     }
-  } catch (error) {
-    console.error('Error:', error);
+  )) {
+    if (typeof response === 'string') {
+      console.log('Assistant:', response);
+    } else {
+      console.log('Tool call:', response);
+    }
   }
 }
 

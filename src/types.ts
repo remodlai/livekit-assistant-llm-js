@@ -30,10 +30,17 @@ export interface FunctionDefinition {
   };
 }
 
+export type ToolFunctionHandler = (args: any) => Promise<any>;
+
+export interface ToolFunction {
+  definition: FunctionDefinition;
+  handler: ToolFunctionHandler;
+}
+
 export interface BuiltInTool {
   type: BuiltInToolType;
   file_search?: Partial<FileSearchConfig>;
-  function?: FunctionDefinition;
+  function?: ToolFunction;
 }
 
 export interface AssistantLoadOptions {
