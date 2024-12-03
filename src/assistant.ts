@@ -1,8 +1,7 @@
-import { Agent, JobContext } from '@livekit/agents';
-import { AssistantTool, convertToAssistantTool, RunOptions } from './types';
 import OpenAI from 'openai';
+import { AssistantTool, RunOptions, MessageContent, MessageMethods, MessageOptions } from './types';
 
-export class AssistantLLM implements Agent {
+export class AssistantLLM {
   private openai: OpenAI;
   private assistant_id: string;
   private thread_id?: string;
@@ -15,113 +14,90 @@ export class AssistantLLM implements Agent {
     this.options = options;
   }
 
-  async init() {
-    if (!this.thread_id) {
-      const thread = await this.openai.beta.threads.create();
-      this.thread_id = thread.id;
-    }
+  createRun() {
+    return new AssistantRun(this);
+  }
+}
 
-    if (this.options.tools || this.options.response_format) {
-      await this.openai.beta.assistants.update(this.assistant_id, {
-        tools: this.options.tools?.map(convertToAssistantTool) as AssistantTool[],
-        response_format: this.options.response_format
-      });
-    }
+class AssistantRun {
+  private content: MessageContent[] = [];
+  private assistant: AssistantLLM;
+
+  constructor(assistant: AssistantLLM) {
+    this.assistant = assistant;
   }
 
-  async handleInput(input: string) {
-    await this.openai.beta.threads.messages.create(this.thread_id!, {
-      role: 'user',
-      content: input
-    });
-
-    const run = await this.openai.beta.threads.runs.create(this.thread_id!, {
-      assistant_id: this.assistant_id,
-      additional_instructions: this.options?.additional_instructions,
-      tools: this.options?.tools?.map(convertToAssistantTool) as AssistantTool[]
-    });
-
-    let currentRun = run;
-    while (currentRun.status === 'queued' || currentRun.status === 'in_progress') {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      currentRun = await this.openai.beta.threads.runs.retrieve(this.thread_id!, currentRun.id);
-    }
-
-    if (currentRun.status === 'completed') {
-      const messages = await this.openai.beta.threads.messages.list(this.thread_id!);
-      const lastMessage = messages.data[0];
-      const textContent = lastMessage.content.find(c => c.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        throw new Error('No text content found in response');
-      }
-      return textContent.text.value;
-    } else {
-      throw new Error(`Run failed with status: ${currentRun.status}`);
-    }
-  }
-
-  async entry(ctx: JobContext): Promise<void> {
-    await this.init();
-    
-    const input = ctx.room.localParticipant?.metadata;
-    if (!input) {
-      throw new Error('No input provided');
-    }
-
-    try {
-      const response = await this.handleInput(input);
-      await ctx.room.localParticipant?.publishData(
-        Buffer.from(JSON.stringify({ type: 'text', content: response })),
-        { reliable: true }
-      );
-    } catch (error) {
-      await ctx.room.localParticipant?.publishData(
-        Buffer.from(JSON.stringify({ type: 'error', content: error })),
-        { reliable: true }
-      );
-    }
-  }
-
-  async chat(params: { chatCtx: any; fncCtx: any }): Promise<any> {
-    const message = params.chatCtx.messages[params.chatCtx.messages.length - 1].content;
-    
-    // Create message in thread
-    await this.openai.beta.threads.messages.create(this.thread_id!, {
-      role: 'user',
-      content: message
-    });
-
-    // Start streaming run with function calling enabled
-    const stream = await this.openai.beta.threads.runs.createAndStream(this.thread_id!, {
-      assistant_id: this.assistant_id,
-      tools: params.fncCtx ? this.options.tools : undefined  // Only pass tools if we have fncCtx
-    });
-
-    // Transform stream to match chat completions format
-    return {
-      async *[Symbol.asyncIterator]() {
-        for await (const chunk of stream) {
-          if ('content' in chunk) {
-            yield {
-              choices: [{
-                delta: { content: chunk.content },
-                index: 0
-              }]
-            };
+  messages: MessageMethods = {
+    add: {
+      text: (text: string, options?: MessageOptions) => {
+        const content = options?.hidden 
+          ? `${options.hiddenInstructions || DEFAULT_HIDDEN_PREFIX}${text}`
+          : text;
+          
+        this.content.push({ type: 'text', text: content });
+        return this;
+      },
+      image: {
+        file: (fileId: string, options?: MessageOptions) => {
+          if (options?.hidden) {
+            // Add hidden text message first
+            this.content.push({ 
+              type: 'text', 
+              text: `${options.hiddenInstructions || DEFAULT_HIDDEN_PREFIX}Image attached` 
+            });
           }
-          // Handle function calls if they come through the stream
-          if ('tool_calls' in chunk) {
-            yield {
-              choices: [{
-                delta: { 
-                  function_call: chunk.tool_calls[0]  // Assuming single function call for now
-                },
-                index: 0
-              }]
-            };
-          }
+          this.content.push({ type: 'image_file', file_id: fileId });
+          return this;
+        },
+        url: (url: string, options?: MessageOptions) => {
+          this.content.push({ type: 'image_url', url });
+          return this;
         }
       }
-    };
+    },
+
+    remove: {
+      text: (text: string) => {
+        this.content = this.content.filter(c => 
+          !(c.type === 'text' && c.text === text)
+        );
+        return this;
+      },
+      image: {
+        file: (fileId: string) => {
+          this.content = this.content.filter(c => 
+            !(c.type === 'image_file' && c.file_id === fileId)
+          );
+          return this;
+        },
+        url: (url: string) => {
+          this.content = this.content.filter(c => 
+            !(c.type === 'image_url' && c.url === url)
+          );
+          return this;
+        }
+      }
+    },
+
+    clear: {
+      all: () => {
+        this.content = [];
+        return this;
+      },
+      images: () => {
+        this.content = this.content.filter(c => 
+          !['image_file', 'image_url'].includes(c.type)
+        );
+        return this;
+      },
+      text: () => {
+        this.content = this.content.filter(c => c.type !== 'text');
+        return this;
+      }
+    }
+  };
+
+  async execute(options?: { stream?: boolean }) {
+    // Implementation
   }
 } 
